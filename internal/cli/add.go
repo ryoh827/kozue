@@ -14,11 +14,12 @@ import (
 )
 
 type addOptions struct {
-	create bool
-	from   string
-	path   string
-	track  bool
-	stash  bool
+	create  bool
+	from    string
+	path    string
+	track   bool
+	noTrack bool
+	stash   bool
 }
 
 func newAddCommand(rootOpts *rootOptions) *cobra.Command {
@@ -37,7 +38,8 @@ func newAddCommand(rootOpts *rootOptions) *cobra.Command {
 	cmd.Flags().BoolVarP(&opts.create, "create", "b", false, "create a new branch for the worktree")
 	cmd.Flags().StringVar(&opts.from, "from", "", "base ref when creating a new branch (default origin/main)")
 	cmd.Flags().StringVar(&opts.path, "path", "", "explicit filesystem path for the worktree")
-	cmd.Flags().BoolVar(&opts.track, "track", false, "configure the new branch to track origin/<branch>")
+	cmd.Flags().BoolVar(&opts.track, "track", false, "force the branch to track origin/<branch>")
+	cmd.Flags().BoolVar(&opts.noTrack, "no-track", false, "skip upstream configuration even if a remote branch exists")
 	cmd.Flags().BoolVar(&opts.stash, "stash", false, "stash current changes before creating the worktree")
 
 	return cmd
@@ -46,6 +48,10 @@ func newAddCommand(rootOpts *rootOptions) *cobra.Command {
 func runAdd(cmd *cobra.Command, rootOpts *rootOptions, opts *addOptions, branch string) error {
 	runner := newRunner(cmd.ErrOrStderr(), rootOpts.verbose)
 	ctx := cmd.Context()
+
+	if opts.track && opts.noTrack {
+		return exitErrorf(2, "cannot use --track together with --no-track")
+	}
 
 	repoRoot, err := detectRepoRoot(ctx, runner)
 	if err != nil {
@@ -94,7 +100,7 @@ func runAdd(cmd *cobra.Command, rootOpts *rootOptions, opts *addOptions, branch 
 		}
 	}
 
-	if opts.track {
+	if shouldConfigureUpstream(ctx, runner, repoRoot, branch, opts) {
 		if err := gitSetUpstream(ctx, runner, targetPath, branch); err != nil {
 			return combineErrors(1, err)
 		}
@@ -149,4 +155,22 @@ func gitSetUpstream(ctx context.Context, runner *gitx.Runner, path, branch strin
 	remoteRef := fmt.Sprintf("origin/%s", branch)
 	_, err := runner.Run(ctx, path, "branch", "--set-upstream-to", remoteRef)
 	return err
+}
+
+func shouldConfigureUpstream(ctx context.Context, runner *gitx.Runner, repoRoot, branch string, opts *addOptions) bool {
+	if opts.track {
+		return true
+	}
+	if opts.noTrack {
+		return false
+	}
+	return remoteBranchExists(ctx, runner, repoRoot, branch)
+}
+
+func remoteBranchExists(ctx context.Context, runner *gitx.Runner, repoRoot, branch string) bool {
+	ref := fmt.Sprintf("origin/%s", branch)
+	if _, err := runner.Run(ctx, repoRoot, "rev-parse", "--verify", "--quiet", ref); err != nil {
+		return false
+	}
+	return true
 }

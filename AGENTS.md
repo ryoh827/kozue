@@ -13,7 +13,7 @@ The CLI entrypoint lives in `cmd/koz/main.go`, wiring Cobra setup into internal 
 - `KOZ_GIT_TIMEOUT=6s go test ./...` exercises timeout overrides referenced in `hoge.md`.
 
 ## Coding Style & Naming Conventions
-Run `go fmt ./...` (or your editor’s gofmt integration) before commits—tabs, not spaces. Package names stay lower-case (`cli`, `gitx`). New exported identifiers should exist only when public use is intended; favor unexported helpers. Cobra commands need descriptive `Use`, `Short`, and `Long` strings consistent with the safety-first tone. Prefer `context.Context` plumbing when executing git.
+Run `go fmt ./...` (or your editor’s gofmt integration) before commits—tabs, not spaces. Package names stay lower-case (`cli`, `gitx`). New exported identifiers should exist only when public use is intended; favor unexported helpers. Cobra commands need descriptive `Use`, `Short`, and `Long` strings consistent with the safety-first tone; the `add` command now auto-configures upstreams when `origin/<branch>` exists, so expose opt-outs via flags instead of ad-hoc overrides. Prefer `context.Context` plumbing when executing git.
 
 ## Testing Guidelines
 Stick to Go’s standard testing library. Mirror production filenames with `_test.go` siblings (`internal/cli/root_test.go`). Use table-driven cases for parser logic (porcelain parsing, sanitizer collisions) and assert substrings over entire help messages to keep tests resilient. Run `go test ./...` locally before opening a PR and add regressions for every bug fix, especially around guard rails or path resolution.
